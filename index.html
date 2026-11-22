@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Перегруппировка</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: 1600x900 stage on squared notebook paper; three place-value trays on top, the sum line and keypad below */
+  --paper:#F6F9FF; --grid:#C9DBF7; --ink:#1B2F8F; --margin:#E2463F; --tray:#FFFFFF;
+  --hund:#2FA36B; --ten:#F28C28; --one:#3B7BE0; --ok:#1E9E5A; --soft:#5E6FA8; --sun:#FFD23F;
+  --font:"Jost","Segoe UI",Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#16215E;overflow:hidden;font-family:var(--font);color:var(--ink)}
+#stage{position:absolute;left:50%;top:50%;width:1600px;height:900px;overflow:hidden;background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 2px,transparent 2px),linear-gradient(90deg,var(--grid) 2px,transparent 2px);background-size:40px 40px;background-position:-1px -1px}
+#stage::after{content:"";position:absolute;top:0;bottom:0;right:58px;width:4px;background:var(--margin);opacity:.75;pointer-events:none}
+button{font-family:var(--font);font-weight:700;cursor:pointer;border:0;color:var(--ink)}
+button:focus-visible,.slot:focus-visible{outline:5px solid var(--sun);outline-offset:3px}
+p{margin:0}
+/* top bar */
+#bar{position:absolute;left:40px;right:90px;top:18px;height:64px;display:flex;align-items:center;gap:10px}
+#bar h1{font-size:42px;white-space:nowrap;font-weight:900;margin:0;flex:1;line-height:1}
+#numpill{white-space:nowrap;font-size:32px;font-weight:900;background:var(--ink);color:#fff;border-radius:16px;padding:4px 22px;font-variant-numeric:tabular-nums}
+.tool{white-space:nowrap;font-size:20px;background:#fff;border:3px solid var(--ink);border-radius:14px;padding:8px 16px}
+.tool:disabled{opacity:.4;cursor:default}
+/* trays */
+#trays{position:absolute;left:40px;right:90px;top:96px;height:520px;display:grid;grid-template-columns:320px 1fr 400px;gap:16px}
+.col{background:var(--tray);border:4px solid var(--ink);border-radius:22px;padding:8px 14px 12px;display:flex;flex-direction:column;gap:8px;position:relative;transition:background .15s}
+.col.drop{background:#FFF6CF}
+.col h2{margin:0;font-size:28px;font-weight:900;line-height:1.1}
+.col h2 small{display:block;font-size:19px;font-weight:700;color:var(--soft)}
+.pile{flex:1;display:flex;flex-wrap:wrap;align-content:flex-start;gap:10px;min-height:0}
+.blk{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;flex:none}
+.h{width:86px;height:86px;border-radius:8px;background-color:var(--hund);box-shadow:0 5px 0 #1F7A4E;
+  background-image:linear-gradient(rgba(255,255,255,.55) 2px,transparent 2px),linear-gradient(90deg,rgba(255,255,255,.55) 2px,transparent 2px);background-size:8.6px 8.6px}
+.t{width:24px;height:120px;border-radius:6px;background-color:var(--ten);box-shadow:0 4px 0 #B8630F;
+  background-image:linear-gradient(rgba(255,255,255,.6) 2px,transparent 2px);background-size:100% 12px}
+.o{width:26px;height:26px;border-radius:6px;background:var(--one);box-shadow:0 4px 0 #2456A8}
+.group{display:flex;gap:5px;padding:6px;border:3px dashed var(--ink);border-radius:12px;background:#EEF3FF;flex:none}
+.group.ones{flex-wrap:wrap;width:168px}
+.pile.sm .t{width:16px;height:80px;background-size:100% 8px;border-radius:5px}
+.pile.sm .group{gap:4px;padding:5px}
+.qmark{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:170px;font-weight:900;color:var(--grid)}
+.group .t{background-color:#F7B267} .group .o{background:#7FA8EE}
+.ghost{position:fixed;pointer-events:none;z-index:50;opacity:.9;transform:scale(1.08);filter:drop-shadow(0 10px 8px rgba(27,47,143,.35))}
+.lifted{opacity:.25}
+@keyframes born{from{transform:scale(0) rotate(-20deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes fly{from{transform:translateY(460px) scale(.2);opacity:0}to{transform:none;opacity:1}}
+.fly{animation:fly .6s cubic-bezier(.2,.9,.3,1.1) both;animation-delay:calc(var(--i,0)*70ms)}
+.born{animation:born .35s cubic-bezier(.3,1.5,.5,1) both;animation-delay:calc(var(--i,0)*35ms)}
+/* sum line */
+#work{position:absolute;left:40px;right:90px;top:630px;bottom:16px;display:grid;grid-template-columns:1fr 290px;gap:20px}
+#left{display:flex;flex-direction:column;gap:10px;min-width:0}
+#sum{display:flex;align-items:center;gap:14px;font-size:66px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.slot{width:186px;height:84px;border:4px solid var(--ink);border-radius:16px;background:#fff;font:inherit;font-size:56px;color:var(--ink);text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.slot.active{background:#FFF6CF;border-style:dashed}
+.slot.right{background:#DDF6E6;border-color:var(--ok);color:var(--ok)}
+.slot.wrong{background:#FFE3E0;border-color:var(--margin);color:var(--margin)}
+.slot.fixed{background:#EEF3FF;color:var(--soft);cursor:default}
+#ask{display:none;align-items:center;gap:22px;font-size:46px;font-weight:900;line-height:1.1}
+#ask b{font-size:66px;font-variant-numeric:tabular-nums}
+#ask .slot{width:120px}
+#nextBtn{font-size:34px;font-weight:900;background:var(--ok);color:#fff;border-radius:18px;padding:10px 40px;box-shadow:0 6px 0 #14713F;flex:none}
+#nextBtn:active{transform:translateY(4px);box-shadow:0 2px 0 #14713F}
+#nextBtn[hidden]{display:none}
+#hint{font-size:27px;font-weight:700;color:var(--soft);min-height:36px}
+#hint.good{color:var(--ok)} #hint.bad{color:var(--margin)}
+#ways{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:23px;font-weight:700}
+#ways span.w{background:#fff;border:3px solid var(--ok);color:var(--ok);border-radius:12px;padding:2px 12px;font-variant-numeric:tabular-nums}
+#pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-content:start}
+#pad button,#epad button{font-size:34px;font-weight:900;height:54px;border-radius:14px;background:#fff;border:3px solid var(--ink)}
+#pad button:active,#epad button:active{background:var(--sun)}
+/* number entry */
+#enter{position:absolute;inset:0;background:rgba(246,249,255,.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:22px;z-index:20}
+#enter.on{display:flex}
+#enter h2{font-size:64px;font-weight:900;margin:0}
+#enter p{font-size:30px;font-weight:700;color:var(--soft)}
+#digits{display:flex;gap:14px}
+#digits div{width:110px;height:130px;border:5px dashed var(--ink);border-radius:20px;background:#fff;font-size:96px;font-weight:900;display:flex;align-items:center;justify-content:center}
+#epad{display:grid;grid-template-columns:repeat(3,96px);gap:12px}
+#epad button{height:76px;font-size:40px}
+#epad .go{background:var(--ok);border-color:var(--ok);color:#fff}
+#rand{font-size:28px;background:var(--sun);border:3px solid var(--ink);border-radius:16px;padding:10px 26px}
+#emsg{min-height:38px;color:var(--margin)!important}
+@media (prefers-reduced-motion:reduce){.born,.fly{animation:none}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bar">
+    <h1>Перегруппировка</h1>
+    <span id="numpill">Число: 235</span>
+    <button class="tool" id="undo">Шаг назад</button>
+    <button class="tool" id="newnum">Своё число</button>
+    <button class="tool" id="rnd2">Случайное число</button>
+    <button class="tool" id="snd" aria-pressed="true">Звук: вкл</button>
+    <button class="tool" id="full">Весь экран</button>
+  </div>
+
+  <div id="trays">
+    <div class="col" data-col="h"><h2>Сотни <small>1 сотня = 10 десятков</small></h2><div class="pile" id="pileH"></div></div>
+    <div class="col" data-col="t"><h2>Десятки <small>1 десяток = 10 единиц</small></h2><div class="pile" id="pileT"></div></div>
+    <div class="col" data-col="o"><h2>Единицы</h2><div class="pile" id="pileO"></div></div>
+  </div>
+
+  <div id="work">
+    <div id="left">
+      <div id="sum"></div>
+      <div id="ask"><span id="askQ"></span><div class="slot active" id="askS">?</div></div>
+      <div style="display:flex;align-items:center;gap:20px"><p id="hint" role="status" style="flex:1"></p><button id="nextBtn" hidden>Дальше</button></div>
+      <div id="ways"></div>
+    </div>
+    <div id="pad" aria-label="Клавиатура"></div>
+  </div>
+
+  <div id="enter" class="on">
+    <h2>Какое число разложим по разрядам?</h2>
+    <div id="digits"><div></div><div></div><div></div></div>
+    <p id="emsg"></p>
+    <div id="epad"></div>
+    <button id="rand">Случайное число</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id);};
+var N=235,S={h:2,t:3,o:5},hist=[],moves=0,ways=[],vals=["","",""],active=0,sound=true,entry="";
+var CAP_T=100,CAP_O=90,phase="play",step=0,shown={h:true,t:true,o:true};
+
+/* ---------- sound ---------- */
+var ac=null;
+function tone(fr,type){if(!sound)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();fr.forEach(function(f,i){
+  var o=ac.createOscillator(),g=ac.createGain();o.type=type||"sine";o.frequency.value=f;o.connect(g);g.connect(ac.destination);
+  var s=ac.currentTime+i*.07;g.gain.setValueAtTime(.0001,s);g.gain.exponentialRampToValueAtTime(.16,s+.015);g.gain.exponentialRampToValueAtTime(.0001,s+.25);o.start(s);o.stop(s+.3);});}catch(e){}}
+
+/* ---------- drawing the trays ---------- */
+function blocks(kind,count,born){
+  var s="",g=Math.floor(count/10),r=count%10,i=0,fly=born==="fly";
+  if(kind==="h"){for(var a=0;a<count;a++)s+='<div class="blk h'+(fly?" fly":born?" born":"")+'" data-kind="h" style="--i:'+a+'"></div>';return s;}
+  for(var k=0;k<g;k++){s+='<div class="group'+(kind==="o"?" ones":"")+'">';
+    for(var j=0;j<10;j++,i++)s+='<div class="blk '+kind+(born&&!fly&&k===g-1?" born":"")+'" data-kind="'+kind+'" style="--i:'+j+'"></div>';s+='</div>';}
+  for(var q=0;q<r;q++)s+='<div class="blk '+kind+(fly?" fly":"")+'" data-kind="'+kind+'" style="--i:'+q+'"></div>';
+  return s;
+}
+function draw(born,mode){
+  var Q='<div class="qmark">?</div>';
+  $("pileH").innerHTML=shown.h?blocks("h",S.h,born==="h"&&(mode||true)):Q;
+  $("pileT").innerHTML=shown.t?blocks("t",S.t,born==="t"&&(mode||true)):Q;
+  $("pileO").innerHTML=shown.o?blocks("o",S.o,born==="o"&&(mode||true)):Q;
+  $("pileT").classList.toggle("sm",S.t>29);
+  $("numpill").textContent="Число: "+N;$("undo").disabled=!hist.length;
+}
+function say(text,cls){var h=$("hint");h.className=cls||"";h.textContent=text;}
+
+/* ---------- regrouping ---------- */
+function act(kind,target){
+  if(phase!=="play")return;
+  var before={h:S.h,t:S.t,o:S.o},born=null;
+  if(kind==="h"&&target==="t"){if(S.t+10>CAP_T){say("В десятках больше нет места. Замени 10 десятков на сотню.","bad");return;}S.h--;S.t+=10;born="t";say("1 сотню заменили на 10 десятков. Сосчитай десятки и запиши число новой суммой.");}
+  else if(kind==="t"&&target==="o"){if(S.o+10>CAP_O){say("В единицах больше нет места. Замени 10 единиц на десяток.","bad");return;}S.t--;S.o+=10;born="o";say("1 десяток заменили на 10 единиц. Сосчитай единицы и запиши число новой суммой.");}
+  else if(kind==="t"&&target==="h"){if(S.t<10){say("1 сотня — это 10 десятков. Здесь десятков меньше десяти.","bad");tone([200],"triangle");return;}S.t-=10;S.h++;born="h";say("10 десятков заменили на 1 сотню. Запиши число суммой.");}
+  else if(kind==="o"&&target==="t"){if(S.o<10){say("1 десяток — это 10 единиц. Здесь единиц меньше десяти.","bad");tone([200],"triangle");return;}S.o-=10;S.t++;born=null;say("10 единиц заменили на 1 десяток. Запиши число суммой.");}
+  else if(kind==="h"&&target==="o"){say("Сначала замени сотню на десятки: перетащи её в соседний лоток.","bad");tone([200],"triangle");return;}
+  else return;
+  hist.push(before);moves++;tone([520,660,780,920],"sine");resetSlots();draw(born);
+}
+/* drag with finger or mouse; a tap breaks the block into the next column */
+var drag=null;
+$("trays").addEventListener("pointerdown",function(e){
+  var b=e.target.closest&&e.target.closest(".blk");if(!b)return;
+  drag={el:b,kind:b.getAttribute("data-kind"),x:e.clientX,y:e.clientY,ghost:null,id:e.pointerId};
+  try{b.setPointerCapture(e.pointerId);}catch(x){} e.preventDefault();
+});
+window.addEventListener("pointermove",function(e){
+  if(!drag||e.pointerId!==drag.id)return;
+  if(!drag.ghost){if(Math.abs(e.clientX-drag.x)+Math.abs(e.clientY-drag.y)<10)return;
+    var r=drag.el.getBoundingClientRect(),g=drag.el.cloneNode(false);g.className=drag.el.className.replace("born","")+" ghost";
+    g.style.width=r.width+"px";g.style.height=r.height+"px";g.style.backgroundSize=drag.kind==="h"?(r.width/10)+"px "+(r.width/10)+"px":drag.kind==="t"?"100% "+(r.height/10)+"px":"";
+    document.body.appendChild(g);drag.ghost=g;drag.w=r.width;drag.hh=r.height;drag.el.classList.add("lifted");}
+  drag.ghost.style.left=(e.clientX-drag.w/2)+"px";drag.ghost.style.top=(e.clientY-drag.hh/2)+"px";
+  var c=colAt(e.clientX,e.clientY);Array.prototype.forEach.call(document.querySelectorAll(".col"),function(k){k.classList.toggle("drop",k===c&&k.getAttribute("data-col")!==drag.kind);});
+});
+function colAt(x,y){var el=document.elementFromPoint(x,y);return el&&el.closest?el.closest(".col"):null;}
+function endDrag(e){
+  if(!drag||e.pointerId!==drag.id)return;var d=drag;drag=null;
+  Array.prototype.forEach.call(document.querySelectorAll(".col"),function(k){k.classList.remove("drop");});
+  d.el.classList.remove("lifted");
+  if(d.ghost){d.ghost.remove();var c=colAt(e.clientX,e.clientY);if(c){var t=c.getAttribute("data-col");if(t!==d.kind)act(d.kind,t);}}
+  else if(d.kind==="h")act("h","t"); else if(d.kind==="t")act("t","o");
+}
+window.addEventListener("pointerup",endDrag);window.addEventListener("pointercancel",function(e){if(drag&&drag.ghost)drag.ghost.remove();if(drag)drag.el.classList.remove("lifted");drag=null;});
+
+/* ---------- the sum line ---------- */
+function need(i){return [S.h*100,S.t*10,S.o][i];}
+function used(i){return need(i)>0;}
+function firstOpen(){for(var i=0;i<3;i++)if(used(i)&&String(need(i))!==vals[i])return i;return -1;}
+function resetSlots(){vals=["","",""];
+  var parts=[];for(var i=0;i<3;i++)if(used(i))parts.push('<div class="slot" id="s'+i+'" data-i="'+i+'" tabindex="0" role="textbox" aria-label="'+["Сотни","Десятки","Единицы"][i]+'"></div>');
+  $("sum").innerHTML='<span id="sumN">'+N+'</span><span>=</span>'+parts.join('<span>+</span>');
+  active=firstOpen();paint();}
+function paint(){
+  for(var i=0;i<3;i++){var el=$("s"+i);if(!el)continue;var v=vals[i];
+    el.textContent=v===""?"?":v;
+    el.className="slot"+(i===active?" active":"")+(v!==""?(String(need(i))===v?" right":(String(need(i)).indexOf(v)===0?"":" wrong")):"");}
+}
+$("sum").addEventListener("click",function(e){var el=e.target.closest&&e.target.closest(".slot");if(!el||phase!=="play")return;var i=+el.getAttribute("data-i");active=i;if(String(need(i))!==vals[i])vals[i]="";paint();});
+function key(k){
+  if($("enter").classList.contains("on")){ekey(k);return;}
+  if(phase==="build"){bkey(k);return;}
+  if(active<0)return;
+  if(k==="back"){vals[active]=vals[active].slice(0,-1);paint();return;}
+  if(k==="next"){for(var n=1;n<=3;n++){var j=(active+n)%3;if(used(j)){active=j;break;}}paint();return;}
+  if(vals[active].length>=3)vals[active]="";
+  if(String(need(active))===vals[active])return;
+  vals[active]+=k;
+  var want=String(need(active));
+  if(vals[active]===want){tone([700,900]);active=firstOpen();paint();if(active<0)solved();}
+  else{if(want.indexOf(vals[active])!==0&&vals[active].length>=want.length)tone([200],"triangle");paint();}
+}
+function solved(){
+  var w=N+" = "+[S.h*100,S.t*10,S.o].filter(function(x){return x>0;}).join(" + ");
+  if(ways.indexOf(w)<0)ways.push(w);
+  tone([523,659,784,1047]);
+  say((S.t<10&&S.o<10?"Верно! Это сумма разрядных слагаемых.":"Верно! Число записано другой суммой.")+" Нажми «Дальше» или замени блок и запиши ещё раз.","good");
+  $("nextBtn").hidden=false;
+  $("ways").innerHTML="Записано: "+ways.map(function(x){return '<span class="w">'+x+'</span>';}).join("");
+}
+(function(){var p=$("pad"),ks=["1","2","3","4","5","6","7","8","9","back","0","next"];
+  ks.forEach(function(k){var b=document.createElement("button");b.textContent=k==="back"?"⌫":k==="next"?"→":k;b.setAttribute("aria-label",k==="back"?"Стереть":k==="next"?"Следующее окошко":k);
+    b.addEventListener("click",function(){key(k);});p.appendChild(b);});})();
+document.addEventListener("keydown",function(e){
+  if(e.key>="0"&&e.key<="9"){key(e.key);e.preventDefault();}
+  else if(e.key==="Backspace"){key("back");e.preventDefault();}
+  else if(e.key==="Enter"||e.key==="Tab"){if($("enter").classList.contains("on"))ekey("go");else key("next");e.preventDefault();}
+});
+
+/* ---------- choosing a number ---------- */
+var ASK=[["Сколько сотен в числе","Подсказка: разряды считают справа налево. Сотни — третья цифра справа."],["Сколько десятков в разряде десятков числа","Подсказка: разряды считают справа налево. Десятки — вторая цифра справа."],["Сколько единиц в разряде единиц числа","Подсказка: единицы — первая цифра справа."]];
+function ask(){$("ask").style.display="flex";$("sum").style.display="none";$("askQ").innerHTML=ASK[step][0]+" <b>"+N+"</b>?";
+  var a=$("askS");a.textContent="?";a.className="slot active";say("Набери цифру на клавиатуре.");}
+function bkey(k){
+  if(k==="back"||k==="next")return;
+  var kind=["h","t","o"][step],want=[S.h,S.t,S.o][step],a=$("askS");a.textContent=k;
+  if(+k===want){a.className="slot right";shown[kind]=true;draw(kind,"fly");tone([520,660,780]);step++;
+    var names=["сотни","десятки","единицы"],none=["","В разряде десятков 0.","В разряде единиц 0."];
+    if(step>2){setTimeout(function(){phase="play";$("ask").style.display="none";$("sum").style.display="flex";resetSlots();
+      say("Запиши число суммой разрядных слагаемых: сколько единиц в сотнях, в десятках и в единицах.");},900);}
+    else setTimeout(ask,900);
+    say(want>0?"Верно! Вылетают "+names[step-1]+".":"Верно! "+none[step-1],"good");}
+  else{a.className="slot wrong";tone([200],"triangle");say(ASK[step][1],"bad");var st=step;setTimeout(function(){if(phase==="build"&&step===st){a.textContent="?";a.className="slot active";}},900);}
+}
+function start(n){N=n;S={h:Math.floor(n/100),t:Math.floor(n/10)%10,o:n%10};hist=[];moves=0;ways=[];$("ways").innerHTML="";
+  $("enter").classList.remove("on");$("nextBtn").hidden=true;phase="build";shown={h:S.h===0,t:false,o:false};step=S.h===0?1:0;vals=["","",""];draw();ask();}
+function showEntry(){entry="";paintEntry();$("emsg").textContent="";$("enter").classList.add("on");}
+function paintEntry(){var d=$("digits").children;for(var i=0;i<3;i++)d[i].textContent=entry[i]||"";}
+function ekey(k){
+  if(k==="back")entry=entry.slice(0,-1);
+  else if(k==="go"||k==="next"){var n=parseInt(entry,10);if(!(n>=10&&n<=999)){$("emsg").textContent="Введи число от 10 до 999.";tone([200],"triangle");return;}start(n);return;}
+  else if(entry.length<3&&!(entry===""&&k==="0"))entry+=k;
+  $("emsg").textContent="";paintEntry();
+}
+(function(){var p=$("epad"),ks=["1","2","3","4","5","6","7","8","9","back","0","go"];
+  ks.forEach(function(k){var b=document.createElement("button");b.textContent=k==="back"?"⌫":k==="go"?"✓":k;if(k==="go")b.className="go";
+    b.setAttribute("aria-label",k==="back"?"Стереть":k==="go"?"Готово":k);b.addEventListener("click",function(){ekey(k);});p.appendChild(b);});})();
+$("rand").addEventListener("click",function(){start(100+Math.floor(Math.random()*900));});
+$("newnum").addEventListener("click",showEntry);
+$("nextBtn").addEventListener("click",showEntry);
+$("rnd2").addEventListener("click",function(){start(100+Math.floor(Math.random()*900));});
+$("undo").addEventListener("click",function(){if(!hist.length)return;S=hist.pop();resetSlots();draw();say("Вернулись на шаг назад.");});
+$("snd").addEventListener("click",function(){sound=!sound;this.textContent="Звук: "+(sound?"вкл":"выкл");this.setAttribute("aria-pressed",sound);});
+$("full").addEventListener("click",function(){try{if(document.fullscreenElement)document.exitFullscreen();else{var q=document.documentElement.requestFullscreen();if(q&&q.catch)q.catch(function(){});}}catch(e){}});
+var stage=$("stage");
+function fit(){var s=Math.min(window.innerWidth/1600,window.innerHeight/900);stage.style.transform="translate(-50%,-50%) scale("+s+")";}
+window.addEventListener("resize",fit);fit();draw();resetSlots();
+})();
+</script>
+</body>
+</html>
